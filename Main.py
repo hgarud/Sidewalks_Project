@@ -1,7 +1,7 @@
 from keras import losses, optimizers, utils, models
 from keras.callbacks import ModelCheckpoint, Callback
 from Data import MapillaryData, MyGenerator
-from Model import SegNet
+from Model import SegNet, ResNet
 import cv2
 import numpy
 import argparse
@@ -26,17 +26,22 @@ def main(args):
     
     print("Done.")
 
+    
     # Create SegNet 
     model = SegNet()
 #    input_shape = (args.batch_size, args.input_shape[0], args.input_shape[1], args.input_shape[2])
     segnet = model.CreateSegNet(input_shape = args.input_shape, n_labels = args.n_labels)
-#    segnet.load_weights('/share/ece592f17/RA/codebase/weigths-improvement-01-0.97.hdf5')
-#    print(segnet.summary())
-
-#    with open('model_5l.json', 'r') as model_file:
-#        segnet = models.model_from_json(model_file.read())
+    segnet.load_weights('/share/ece592f17/RA/codebase/weigths-improvement-03-0.97_512_BS2.hdf5')
     
-#    segnet.load_weights('model_5l_weight_ep50.hdf5')
+    '''
+    # Create ResNet
+    model = ResNet()
+    resnet = model.CreateResNet(input_shape = args.input_shape)
+    resnet.compile(loss = losses.categorical_crossentropy,
+                    optimizer = optimizers.Adam(),
+                    metrics = ['accuracy'])
+    '''
+
     
     # Create Callbacks for Accuracy and Saving Checkpoints
     class AccuracyHistory(Callback):
@@ -64,7 +69,13 @@ def main(args):
                             validation_data = val_generator,
                             validation_steps = int(2000/args.batch_size))
     
-
+    '''resnet.fit_generator(generator = train_generator,
+                            steps_per_epoch = int(18000/args.batch_size),
+                            epochs = args.n_epochs,
+                            verbose = 1, callbacks = callbacks_list,
+                            validation_data = val_generator,
+                            validation_steps = int(2000/args.batch_size))
+    '''
 if __name__ == "__main__":
     # command line argments
     parser = argparse.ArgumentParser(description="SegNet Mapillary dataset")

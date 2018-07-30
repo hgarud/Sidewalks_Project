@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import os
 from keras.models import Model
 from keras.layers import Input
 from keras.layers.core import Dense, Dropout, Activation, Flatten, Reshape, Permute
@@ -8,9 +9,15 @@ from keras.layers.normalization import BatchNormalization
 from keras.layers.merge import Multiply, Concatenate
 from keras.utils import np_utils
 from CustomLayers import MaxPoolingWithArgmax2D, MaxUnpooling2D
-from keras import regularizers
+from keras import regularizers, losses, optimizers
+from keras.models import *
+from keras.layers import Input, merge, Conv2D, MaxPooling2D, UpSampling2D, Dropout, Cropping2D
+from keras.optimizers import *
+from keras.callbacks import ModelCheckpoint, LearningRateScheduler
 #from keras import backend as K
 #K.set_floatx('float16')
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
+
 
 class SegNet(object):
     
@@ -139,8 +146,23 @@ class SegNet(object):
         
         return segnet
         
+class ResNet(object):
+    def __init__(self):
+        print("Building the ResNet architecture")
         
+    def CreateResNet(self, input_shape):
+        from resnet50 import ResNet50
+        resnet = ResNet50(include_top = False, weights='imagenet', input_shape = input_shape)
+        
+        return resnet
+
+
+        
+
 if __name__ == '__main__':
-    model = SegNet()
-    segnet = model.CreateSegNet(input_shape = (1944, 2592, 3), n_labels = 12)
+    model = ResNet()
+    resnet = model.CreateResNet(input_shape = (1944, 2592, 3))
+    resunet.compile(loss = losses.categorical_crossentropy,
+                    optimizer = optimizers.Adam(),
+                    metrics = ['accuracy'])
 
