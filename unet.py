@@ -3,13 +3,13 @@
 
 import numpy as np
 from keras.models import *
-from keras.layers import Input, Conv2D, Conv2DTranspose, MaxPooling2D, Dropout, concatenate
+from keras.layers import Input, Conv2D, Conv2DTranspose, MaxPooling2D, Dropout, concatenate, BatchNormalization, Activation, Reshape
 from keras.optimizers import *
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler
 from keras import backend as keras
 
 
-def unet(input_shape=None, n_labels=12, output_mode = "softmax"):
+def unet(input_shape, n_labels, output_mode = "softmax"):
     inputs = Input(shape=input_shape)
 
     conv1 = Conv2D(64, 3, padding='same', kernel_initializer='he_normal')(inputs)
@@ -107,10 +107,10 @@ def unet(input_shape=None, n_labels=12, output_mode = "softmax"):
     conv9 = Activation("relu")(conv9)
     
     conv10 = Conv2D(n_labels, 1, padding = 'same', kernel_initializer = 'he_normal')(conv9)
-    conv_10 = BatchNormalization()(conv_10)
-    conv_10 = Reshape((input_shape[0] * input_shape[1], n_labels), input_shape=(input_shape[0], input_shape[1], n_labels))(conv_10)
+    conv10 = BatchNormalization()(conv10)
+    conv10 = Reshape((input_shape[0] * input_shape[1], n_labels), input_shape=(input_shape[0], input_shape[1], n_labels))(conv10)
 
-    outputs = Activation(output_mode)(conv_10)
+    outputs = Activation(output_mode)(conv10)
 
     model = Model(input = inputs, output = outputs)
 
@@ -120,4 +120,5 @@ if __name__ == '__main__':
     input_shape = (224, 224, 3)
     n_labels = 12
     model = unet(input_shape=input_shape, n_labels=n_labels)
+    model.load_weights('/share/ece592f17/RA/codebase/zf_unet_224.h5')
     model.summary()

@@ -131,15 +131,15 @@ class SegNet(object):
         
         unpool_5 = MaxUnpooling2D(pool_size)([conv_24, mask_1])
         
-        conv_25 = Convolution2D(64, (kernel, kernel), padding="same", kernel_regularizer = regularizers.l2(0.01))(unpool_5)
+        conv_25 = Convolution2D(64, (kernel, kernel), padding="same", kernel_regularizer = regularizers.l2(0.01), name = 'conv25')(unpool_5)
         conv_25 = BatchNormalization()(conv_25)
-        conv_25 = Activation("relu")(conv_25)
+        conv_25 = Activation("relu", name = 'conv25_activation')(conv_25)
         
         conv_26 = Convolution2D(n_labels, (1, 1), padding="valid", kernel_regularizer = regularizers.l2(0.01))(conv_25)
         conv_26 = BatchNormalization()(conv_26)
         conv_26 = Reshape((input_shape[0] * input_shape[1], n_labels), input_shape=(input_shape[0], input_shape[1], n_labels))(conv_26)
 
-        outputs = Activation(output_mode)(conv_26)
+        outputs = Activation(output_mode, name = 'output_activation')(conv_26)
         print("Building decoder done..")
         
         segnet = Model(inputs=inputs, outputs=outputs, name="SegNet")
@@ -220,11 +220,26 @@ class UNet(object):
 
         return model
         
+class EnsembleModelAddOns(object):
+    def __init__(self):
+        print("Adding Model AddOns")
+        
+    def MLPClassifier(self):
+        from sklearn.neural_network import MLPClassifier
+        clf = MLPClassifier(solver='lbfgs', alpha=1e-5,
+                    hidden_layer_sizes=(5, 2), random_state=1)
+        return clf
+        
+    def MultinomialNaiveBayes(self):
+        from sklearn.naive_bayes import MultinomialNB
+        clf = MultinomialNB(alpha = 0.001)
+        return clf        
 
 if __name__ == '__main__':
-    model = ResNet()
-    resnet = model.CreateResNet(input_shape = (1944, 2592, 3))
-    resunet.compile(loss = losses.categorical_crossentropy,
+    model = SegNet()
+    segnet = model.CreateSegNet(input_shape = (1944, 2592, 3), n_labels = 12)
+    segnet.compile(loss = losses.categorical_crossentropy,
                     optimizer = optimizers.Adam(),
                     metrics = ['accuracy'])
+    print(segnet.summary())
 

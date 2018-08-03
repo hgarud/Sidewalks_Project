@@ -49,8 +49,6 @@ class MyGenerator(object):
             if img is not None:
                 img = cv2.resize(img, (size[1], size[0]))
                 img = img.astype(np.float32)
-    #            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    #            img = img/255.0
                 return img
             else:
                 print("Image {} not loaded".format(path))
@@ -76,19 +74,6 @@ class MyGenerator(object):
 #                    labels[:, :, c] = (img == label)
                 labels[:, :, 0] = 255 - img
                 labels[:, :, 1] = img
-
-#            print(img == 119.949)
-#            if img == 119.949:
-#                img = 255
-#            else:
-#                img = 0
-#            print(np.unique(img))
-#            unique_labels = np.unique(img)
-#            print("*****************************************", len(unique_labels))
-#            assert len(unique_labels) == n_labels
-#            labels = np.zeros((size[0], size[1], len(unique_labels)))
-    #            for i, unique_label in enumerate(unique_labels):
-#                labels[:, :, i] = (img == unique_label).astype(int)
 
         except Exception as e:
             print (path, e)
