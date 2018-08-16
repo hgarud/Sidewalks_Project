@@ -54,7 +54,7 @@ def main(args):
     segnet = model.CreateSegNet(input_shape = args.input_shape, n_labels = args.n_labels)
 
     # Load weights
-    segnet.load_weights('/share/ece592f17/RA/codebase/weigths-improvement-01-0.97.hdf5')
+    segnet.load_weights('/share/ece592f17/RA/codebase/weigths-improvement-01-0.97_512_BS2.hdf5')
 #    segnet.load_weights('/share/ece592f17/RA/codebase/weigths-improvement-01-0.86.hdf5')
     segnet.compile(loss = losses.categorical_crossentropy,
                     optimizer = optimizers.Adam(),

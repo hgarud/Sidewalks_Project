@@ -56,7 +56,7 @@ class MyGenerator(object):
             print(path, e)
             img = np.zeros((size[0], size[1], 3))
             return img
-		    
+    	    
     def getLabel(self, path, size, n_labels, grayscale = True):
         labels = np.zeros((size[0], size[1], n_labels))
         try:
@@ -80,7 +80,7 @@ class MyGenerator(object):
             
         labels =  np.reshape(labels, (size[0]*size[1], n_labels))
         return labels
-            
+
     def get_batch_generator(self, subset, size):
         self._image_path = self.base_dir + subset + "/images/all_images/"
         self._label_path = self.base_dir + subset + "/labels/all_images/"

@@ -1,12 +1,18 @@
 from Model import SegNet, EnsembleModelAddOns
 import cv2
 import numpy as np
-#from Data import MyGenerator
 import os
 import argparse
 import itertools
 from keras import losses, optimizers, utils, models
 from keras.models import Model
+from keras.callbacks import ModelCheckpoint, Callback
+
+'''
+import affinity
+pid = os.getpid()
+affinity.set_process_affinity_mask(pid, 1)
+'''
 
 class MyEnsembleGenerator(object):
     def __init__(self, base_dir, batch_size = 64):
@@ -44,7 +50,7 @@ class MyEnsembleGenerator(object):
 
             yield np.array(X)
 
-    def getLabel(self, path, size, grayscale = True):
+    def getLabel(self, path, size, n_labels = 2, grayscale = True):
         labels = np.zeros((size[0], size[1], n_labels))
         try:
             img = cv2.imread(path, 1)
@@ -81,14 +87,44 @@ class MyEnsembleGenerator(object):
 
             yield np.array(Y)
             
+    def get_featureLabel_batch_generator(self, feature_space, subset, size):
+        # Flatten the features for NN
+        feature_space = np.reshape(feature_space, (feature_space.shape[0], feature_space.shape[1]*feature_space.shape[2], feature_space.shape[3]))
+        
+        self._label_path = self.base_dir + subset + "/labels/all_images/"
+        labels = sorted(os.listdir(self._label_path))
+        
+        #assert feature_space.shape[0] == len(labels)
+        print(feature_space.shape, len(labels))
+        
+        zipped = itertools.cycle(zip(feature_space, labels))
+        while True:
+            Y = []
+            temp = []
+            for _ in range(self.batch_size):
+                feat, label = next(zipped)
+                
+                Y.append(self.getLabel(self._label_path+label, size))
+
+            yield feat, np.array(Y)
             
+def save_in_hdf5_file(hdf5_path, data, data_shape):
+    import tables
+    img_dtype = tables.UInt8Atom()      # dtype in which the images will be saved
+    data_shape = (0, data_shape[0], data_shape[1], 64)
+    hdf5_file = tables.open_file(hdf5_path+"inference_output.hdf5", mode='w')       # open a hdf5 file and create earrays
+    image_storage = hdf5_file.create_earray(hdf5_file.root, img_dtype, shape=data_shape)
+    
+    for i, datum in enumerate(data):
+        hdf5_file[i] = datum
+
 def main(args):
     # Create Data Injector 
     print("Building the data generators...")
 
     data = MyEnsembleGenerator(base_dir = args.data_dir, batch_size = args.batch_size)
     train_image_generator = data.get_image_batch_generator(subset = "training", size = (args.input_shape[0], args.input_shape[1]))
-#    val_image_generator = data.get_image_batch_generator(subset = "validation", size = (args.input_shape[0], args.input_shape[1]))
+    val_image_generator = data.get_image_batch_generator(subset = "validation", size = (args.input_shape[0], args.input_shape[1]))
     
     print("Done.")
     
@@ -105,33 +141,88 @@ def main(args):
                     
     layer_name = 'conv25_activation'
     
+    # Inference
     intermediate_layer_model = Model(inputs=segnet.input, outputs=segnet.get_layer(layer_name).output)
-    intermediate_layer_model_output = intermediate_layer_model.predict_generator(generator = train_image_generator, steps = int(18000/args.batch_size), verbose = 1)
+    intermediate_layer_train_model_output = intermediate_layer_model.predict_generator(generator = train_image_generator, steps = int(500/args.batch_size), workers = 0, use_multiprocessing = False, verbose = 1)
+    intermediate_layer_val_model_output = intermediate_layer_model.predict_generator(generator = val_image_generator, steps = int(500/args.batch_size), workers = 0, use_multiprocessing = False, verbose = 1)
     
+    # Explicit garbage collection :p
+    del train_image_generator
+    del val_image_generator
+    
+    '''
     print(intermediate_layer_model_output.shape)
+    print("Saving data in file...")
+    save_in_hdf5_file(hdf5_path = args.data_dir, data = intermediate_layer_model_output, data_shape = args.input_shape)
+    print("done")
+    
+    
+    intermediate_layer_train_model_output = np.reshape(intermediate_layer_train_model_output, (intermediate_layer_train_model_output.shape[0], intermediate_layer_train_model_output.shape[1]*intermediate_layer_train_model_output.shape[2], intermediate_layer_train_model_output.shape[3]))
+    
+    intermediate_layer_val_model_output = np.reshape(intermediate_layer_val_model_output, (intermediate_layer_val_model_output.shape[0], intermediate_layer_val_model_output.shape[1]*intermediate_layer_val_model_output.shape[2], intermediate_layer_val_model_output.shape[3]))
+    '''
+    
+    train_featureLabel_batcherator = data.get_featureLabel_batch_generator(feature_space = intermediate_layer_train_model_output, subset = "training", size = (args.input_shape[0], args.input_shape[1]))
+    
+    val_featureLabel_batcherator = data.get_featureLabel_batch_generator(feature_space = intermediate_layer_val_model_output, subset = "validation", size = (args.input_shape[0], args.input_shape[1]))
     
     # Ensemble AddOns
-    ensemble_addon = EnsembleModelAddOns().MLPClassifier()
-        
+    ensemble_addon = EnsembleModelAddOns().NNClassifier(input_shape = intermediate_layer_train_model_output.shape[-1])
+     
+    '''    
     def get_batch(array, batch_size):
         for i in range(array.shape[0] // batch_size):
-            yield a[batch_size*i:batch_size*(i+1)]
+            yield array[batch_size*i:batch_size*(i+1)]
 
-    image_batcherator = get_batch(array = intermediate_layer_model_output, batch_size = args.batch_size)
-    label_batcherator = data.get_label_batch_generator(subset = "training", size = (args.input_shape[0], args.input_shape[1]))
+    train_image_batcherator = get_batch(array = intermediate_layer_train_model_output, batch_size = args.batch_size)
+    train_label_batcherator = data.get_label_batch_generator(subset = "training", size = (args.input_shape[0], args.input_shape[1]))
     
-    zipped = zip(image_batcherator, label_batcherator)
+    val_image_batcherator = get_batch(array = intermediate_layer_val_model_output, batch_size = args.batch_size)
+    val_label_batcherator = data.get_label_batch_generator(subset = "validation", size = (args.input_shape[0], args.input_shape[1]))
     
-    for image_batch, label_batch in next(zipped):
+    train_zipped = itertools.cycle(zip(train_image_batcherator, train_label_batcherator))
+    val_zipped = itertools.cycle(zip(val_image_batcherator, val_label_batcherator))
+    
+    for _ in range(int(500) // int(args.batch_size)): 
+        image_batch, label_batch = next(zipped)
         print(image_batch.shape)
         print(label_batch.shape)
         
-        ensemble_addon.partial_fit(image_batch, image_batch)
+        image_batch = np.reshape(image_batch, (image_batch.shape[0], image_batch.shape[1]*image_batch.shape[2], image_batch.shape[3]))
+        image_batch = np.reshape(image_batch, (image_batch.shape[0]*image_batch.shape[1], image_batch.shape[2]))
+        label_batch = np.reshape(label_batch, (label_batch.shape[0]*label_batch.shape[1], label_batch.shape[2]))
+        '''
+        
+    # Create Callbacks for Accuracy and Saving Checkpoints
+    class AccuracyHistory(Callback):
+        def on_train_begin(self, logs={}):
+            self.acc = []
+
+        def on_epoch_end(self, batch, logs={}):
+            self.acc.append(logs.get('acc'))
+
+    history = AccuracyHistory()
+    filepath = "Ensemble_weigths-improvement-{epoch:02d}-{val_acc:.2f}_"+str(args.input_shape[0])+"_BS"+str(args.batch_size)+".hdf5"
+    checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
+    callbacks_list = [checkpoint, history]   
+    
+    ensemble_addon.compile(optimizer = optimizers.SGD(),
+                            loss='categorical_crossentropy',
+                            metrics = ['accuracy'])
+                            
+    
+    ensemble_addon.fit_generator(generator = train_featureLabel_batcherator,
+                        steps_per_epoch = int(500/args.batch_size),
+                        epochs = args.n_epochs,
+                        verbose = 1, callbacks = callbacks_list,
+                        validation_data = val_featureLabel_batcherator,
+                        validation_steps = int(500/args.batch_size))
+        
         
 
 if __name__ == "__main__":
     # command line argments
-    parser = argparse.ArgumentParser(description="SegNet Mapillary dataset")
+    parser = argparse.ArgumentParser(description="Segmentation on Mapillary dataset")
     '''
     parser.add_argument("--model",
             type=str,

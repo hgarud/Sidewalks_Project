@@ -10,10 +10,7 @@ from keras.layers.merge import Multiply, Concatenate
 from keras.utils import np_utils
 from CustomLayers import MaxPoolingWithArgmax2D, MaxUnpooling2D
 from keras import regularizers, losses, optimizers
-from keras.models import *
-from keras.layers import Input, merge, Conv2D, MaxPooling2D, UpSampling2D, Dropout, Cropping2D
-from keras.optimizers import *
-from keras.callbacks import ModelCheckpoint, LearningRateScheduler
+
 #from keras import backend as K
 #K.set_floatx('float16')
 os.environ["CUDA_VISIBLE_DEVICES"]="1"
@@ -138,6 +135,7 @@ class SegNet(object):
         conv_26 = Convolution2D(n_labels, (1, 1), padding="valid", kernel_regularizer = regularizers.l2(0.01))(conv_25)
         conv_26 = BatchNormalization()(conv_26)
         conv_26 = Reshape((input_shape[0] * input_shape[1], n_labels), input_shape=(input_shape[0], input_shape[1], n_labels))(conv_26)
+        #conv_26 = Reshape((input_shape[0] * input_shape[1],), input_shape=(input_shape[0], input_shape[1],))(conv_26)
 
         outputs = Activation(output_mode, name = 'output_activation')(conv_26)
         print("Building decoder done..")
@@ -156,84 +154,33 @@ class ResNet(object):
         
         return resnet
 
-class UNet(object):
-    
-    def __init__(self):        
-        print("Building the UNet architecture")
-
-    def CreateUNet(self, input_shape, n_labels=12):
-        input = Input(shape=input_shape)
-
-        conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(input)
-        # print "conv1 shape:", conv1.shape
-        conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv1)
-        # print "conv1 shape:", conv1.shape
-        pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
-        # print "pool1 shape:", pool1.shape
-
-        conv2 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool1)
-        # print "conv2 shape:", conv2.shape
-        conv2 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv2)
-        # print "conv2 shape:", conv2.shape
-        pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
-        # print "pool2 shape:", pool2.shape
-
-        conv3 = Conv2D(256, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool2)
-        # print "conv3 shape:", conv3.shape
-        conv3 = Conv2D(256, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv3)
-        # print "conv3 shape:", conv3.shape
-        pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
-        # print "pool3 shape:", pool3.shape
-
-        conv4 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool3)
-        conv4 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv4)
-        drop4 = Dropout(0.5)(conv4)
-        pool4 = MaxPooling2D(pool_size=(2, 2))(drop4)
-
-        conv5 = Conv2D(1024, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool4)
-        conv5 = Conv2D(1024, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv5)
-        drop5 = Dropout(0.5)(conv5)
-
-        up6 = Conv2D(512, 2, activation='relu', padding='same', kernel_initializer='he_normal')(UpSampling2D(size=(2, 2))(drop5))
-        merge6 = merge([drop4, up6], mode='concat', concat_axis=3)
-        conv6 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge6)
-        conv6 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv6)
-
-        up7 = Conv2D(256, 2, activation='relu', padding='same', kernel_initializer='he_normal')(UpSampling2D(size=(2, 2))(conv6))
-        merge7 = merge([conv3, up7], mode='concat', concat_axis=3)
-        conv7 = Conv2D(256, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge7)
-        conv7 = Conv2D(256, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv7)
-
-        up8 = Conv2D(128, 2, activation='relu', padding='same', kernel_initializer='he_normal')(UpSampling2D(size=(2, 2))(conv7))
-        merge8 = merge([conv2, up8], mode='concat', concat_axis=3)
-        conv8 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge8)
-        conv8 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv8)
-
-        up9 = Conv2D(64, 2, activation='relu', padding='same', kernel_initializer='he_normal')(UpSampling2D(size=(2, 2))(conv8))
-        merge9 = merge([conv1, up9], mode='concat', concat_axis=3)
-        conv9 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge9)
-        conv9 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
-        conv9 = Conv2D(2, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
-        conv10 = Conv2D(n_labels, 1, activation='sigmoid')(conv9)
-
-        model = Model(input=input, output=conv10)
-
-        return model
-        
 class EnsembleModelAddOns(object):
     def __init__(self):
         print("Adding Model AddOns")
         
     def MLPClassifier(self):
-        from sklearn.neural_network import MLPClassifier
+        # from sklearn.neural_network import MLPClassifier
         clf = MLPClassifier(solver='lbfgs', alpha=1e-5,
                     hidden_layer_sizes=(5, 2), random_state=1)
         return clf
         
     def MultinomialNaiveBayes(self):
-        from sklearn.naive_bayes import MultinomialNB
+        # from sklearn.naive_bayes import MultinomialNB
         clf = MultinomialNB(alpha = 0.001)
-        return clf        
+        return clf
+        
+    def NNClassifier(self, input_shape):
+        from keras.models import Sequential
+        model = Sequential()
+        model.add(Dense(64, input_shape = (input_shape,), use_bias=True, activation='relu', kernel_regularizer=regularizers.l1(0.01)))
+        model.add(Dropout(0.3))
+        model.add(Dense(128, activation='relu', kernel_regularizer=regularizers.l1(0.01)))
+        model.add(Dropout(0.3))
+        model.add(Dense(256, activation='relu', kernel_regularizer=regularizers.l1(0.01)))
+        model.add(Dropout(0.3))
+        model.add(Dense(2, activation = 'softmax'))
+        return model
+        
 
 if __name__ == '__main__':
     model = SegNet()
