@@ -3,12 +3,40 @@ from keras.callbacks import ModelCheckpoint, Callback
 from Data import MapillaryData, MyGenerator
 from Model import SegNet, ResNet
 import cv2
-import numpy
+import numpy as np
 import argparse
 import os
 from unet import unet
-#from keras import backend as K
+from keras import backend as K
+from itertools import product
 #K.set_floatx('float16')
+
+def weighted_categorical_crossentropy(weights):
+    """
+    A weighted version of keras.objectives.categorical_crossentropy
+    
+    Variables:
+        weights: numpy array of shape (C,) where C is the number of classes
+    
+    Usage:
+        weights = np.array([0.5,2,10]) # Class one at 0.5, class 2 twice the normal weights, class 3 10x.
+        loss = weighted_categorical_crossentropy(weights)
+        model.compile(loss=loss,optimizer='adam')
+    """
+    
+    weights = K.variable(weights)
+        
+    def loss(y_true, y_pred):
+        # scale predictions so that the class probas of each sample sum to 1
+        #y_pred /= K.sum(y_pred, axis=-1, keepdims=True)
+        # clip to prevent NaN's and Inf's
+        y_pred = K.clip(y_pred, K.epsilon(), 1 - K.epsilon())
+        # calc
+        loss = y_true * K.log(y_pred) * weights
+        loss = -K.sum(loss, -1)
+        return loss
+    
+    return loss
 
 def main(args):
     # Create Data Injector 
@@ -36,15 +64,20 @@ def main(args):
     history = AccuracyHistory()
     filepath = args.model+"_weigths-improvement-{epoch:02d}-{val_acc:.2f}_"+str(args.input_shape[0])+"_BS"+str(args.batch_size)+".hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
-    callbacks_list = [checkpoint, history]   
-
+    callbacks_list = [checkpoint, history]
+    
+    # Custom class-weighted cross-entropy loss function to tackle the high class bias
+    from functools import partial, update_wrapper
+    weights = np.array([1,10])
+    custom_loss = weighted_categorical_crossentropy(weights)
+    
     if args.model == "segnet":
         # Create SegNet 
         model = SegNet()
     #    input_shape = (args.batch_size, args.input_shape[0], args.input_shape[1], args.input_shape[2])
         segnet = model.CreateSegNet(input_shape = args.input_shape, n_labels = args.n_labels)
-        segnet.load_weights('/share/ece592f17/RA/codebase/weigths-improvement-05-0.97_512_BS2.hdf5')
-        segnet.compile(loss = losses.categorical_crossentropy,
+        #segnet.load_weights('/share/ece592f17/RA/codebase/weigths-improvement-05-0.97_512_BS2.hdf5')
+        segnet.compile(loss = ,
                     optimizer = optimizers.Adam(),
                     metrics = ['accuracy'])
         segnet.fit_generator(generator = train_generator,
@@ -113,7 +146,7 @@ if __name__ == "__main__":
             help="Number of Output Labels")
             
     parser.add_argument("--input_shape",
-            default=512 512 3,
+            default="512 512 3",
             type=int,
             nargs="*",
             help="Input Image Shape")
