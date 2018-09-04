@@ -172,12 +172,9 @@ class EnsembleModelAddOns(object):
     def NNClassifier(self, input_shape):
         from keras.models import Sequential
         model = Sequential()
-        model.add(Dense(64, input_shape = (input_shape,), use_bias=True, activation='relu', kernel_regularizer=regularizers.l1(0.01)))
-        model.add(Dropout(0.3))
-        model.add(Dense(128, activation='relu', kernel_regularizer=regularizers.l1(0.01)))
-        model.add(Dropout(0.3))
-        model.add(Dense(256, activation='relu', kernel_regularizer=regularizers.l1(0.01)))
-        model.add(Dropout(0.3))
+        model.add(Dense(64, input_shape = (input_shape,), use_bias=True, activation='relu', kernel_regularizer=regularizers.l2(0.1)))
+        model.add(Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.1)))
+        model.add(Dense(64, activation='relu', kernel_regularizer=regularizers.l2(0.1)))
         model.add(Dense(2, activation = 'softmax'))
         return model
         
