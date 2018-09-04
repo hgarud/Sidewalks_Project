@@ -9,6 +9,7 @@ import os
 from unet import unet
 from keras import backend as K
 from itertools import product
+from keras.callbacks import TensorBoard
 #K.set_floatx('float16')
 
 def weighted_categorical_crossentropy(weights):
@@ -64,7 +65,8 @@ def main(args):
     history = AccuracyHistory()
     filepath = args.model+"_weigths-improvement-{epoch:02d}-{val_acc:.2f}_"+str(args.input_shape[0])+"_BS"+str(args.batch_size)+".hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
-    callbacks_list = [checkpoint, history]
+    tensorboard = TensorBoard(log_dir="logs/{}".format(time()))
+    callbacks_list = [checkpoint, history, tensorboard]
     
     # Custom class-weighted cross-entropy loss function to tackle the high class bias
     from functools import partial, update_wrapper
@@ -77,7 +79,7 @@ def main(args):
     #    input_shape = (args.batch_size, args.input_shape[0], args.input_shape[1], args.input_shape[2])
         segnet = model.CreateSegNet(input_shape = args.input_shape, n_labels = args.n_labels)
         #segnet.load_weights('/share/ece592f17/RA/codebase/weigths-improvement-05-0.97_512_BS2.hdf5')
-        segnet.compile(loss = ,
+        segnet.compile(loss = custom_loss,
                     optimizer = optimizers.Adam(),
                     metrics = ['accuracy'])
         segnet.fit_generator(generator = train_generator,
