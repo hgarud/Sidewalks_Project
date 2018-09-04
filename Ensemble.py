@@ -8,12 +8,6 @@ from keras import losses, optimizers, utils, models
 from keras.models import Model
 from keras.callbacks import ModelCheckpoint, Callback
 
-'''
-import affinity
-pid = os.getpid()
-affinity.set_process_affinity_mask(pid, 1)
-'''
-
 class MyEnsembleGenerator(object):
     def __init__(self, base_dir, batch_size = 64):
         assert base_dir[-1] == '/'
@@ -99,14 +93,16 @@ class MyEnsembleGenerator(object):
         
         zipped = itertools.cycle(zip(feature_space, labels))
         while True:
+            X = []
             Y = []
-            temp = []
             for _ in range(self.batch_size):
                 feat, label = next(zipped)
-                
+                X.append(feat)
                 Y.append(self.getLabel(self._label_path+label, size))
+            X = np.reshape(np.array(X), (np.array(X).shape[0]*np.array(X).shape[1], np.array(X).shape[2]))
+            Y = np.reshape(np.array(Y), (np.array(Y).shape[0]*np.array(Y).shape[1], np.array(Y).shape[2]))
 
-            yield feat, np.array(Y)
+            yield X, Y
             
 def save_in_hdf5_file(hdf5_path, data, data_shape):
     import tables
@@ -146,21 +142,10 @@ def main(args):
     intermediate_layer_train_model_output = intermediate_layer_model.predict_generator(generator = train_image_generator, steps = int(500/args.batch_size), workers = 0, use_multiprocessing = False, verbose = 1)
     intermediate_layer_val_model_output = intermediate_layer_model.predict_generator(generator = val_image_generator, steps = int(500/args.batch_size), workers = 0, use_multiprocessing = False, verbose = 1)
     
-    # Explicit garbage collection :p
+    # Explicit garbage collection :/
     del train_image_generator
     del val_image_generator
-    
-    '''
-    print(intermediate_layer_model_output.shape)
-    print("Saving data in file...")
-    save_in_hdf5_file(hdf5_path = args.data_dir, data = intermediate_layer_model_output, data_shape = args.input_shape)
-    print("done")
-    
-    
-    intermediate_layer_train_model_output = np.reshape(intermediate_layer_train_model_output, (intermediate_layer_train_model_output.shape[0], intermediate_layer_train_model_output.shape[1]*intermediate_layer_train_model_output.shape[2], intermediate_layer_train_model_output.shape[3]))
-    
-    intermediate_layer_val_model_output = np.reshape(intermediate_layer_val_model_output, (intermediate_layer_val_model_output.shape[0], intermediate_layer_val_model_output.shape[1]*intermediate_layer_val_model_output.shape[2], intermediate_layer_val_model_output.shape[3]))
-    '''
+    del segnet
     
     train_featureLabel_batcherator = data.get_featureLabel_batch_generator(feature_space = intermediate_layer_train_model_output, subset = "training", size = (args.input_shape[0], args.input_shape[1]))
     
@@ -168,30 +153,6 @@ def main(args):
     
     # Ensemble AddOns
     ensemble_addon = EnsembleModelAddOns().NNClassifier(input_shape = intermediate_layer_train_model_output.shape[-1])
-     
-    '''    
-    def get_batch(array, batch_size):
-        for i in range(array.shape[0] // batch_size):
-            yield array[batch_size*i:batch_size*(i+1)]
-
-    train_image_batcherator = get_batch(array = intermediate_layer_train_model_output, batch_size = args.batch_size)
-    train_label_batcherator = data.get_label_batch_generator(subset = "training", size = (args.input_shape[0], args.input_shape[1]))
-    
-    val_image_batcherator = get_batch(array = intermediate_layer_val_model_output, batch_size = args.batch_size)
-    val_label_batcherator = data.get_label_batch_generator(subset = "validation", size = (args.input_shape[0], args.input_shape[1]))
-    
-    train_zipped = itertools.cycle(zip(train_image_batcherator, train_label_batcherator))
-    val_zipped = itertools.cycle(zip(val_image_batcherator, val_label_batcherator))
-    
-    for _ in range(int(500) // int(args.batch_size)): 
-        image_batch, label_batch = next(zipped)
-        print(image_batch.shape)
-        print(label_batch.shape)
-        
-        image_batch = np.reshape(image_batch, (image_batch.shape[0], image_batch.shape[1]*image_batch.shape[2], image_batch.shape[3]))
-        image_batch = np.reshape(image_batch, (image_batch.shape[0]*image_batch.shape[1], image_batch.shape[2]))
-        label_batch = np.reshape(label_batch, (label_batch.shape[0]*label_batch.shape[1], label_batch.shape[2]))
-        '''
         
     # Create Callbacks for Accuracy and Saving Checkpoints
     class AccuracyHistory(Callback):
